@@ -2,6 +2,7 @@
 namespace StevieRay;
 
 use Mso\IdnaConvert\IdnaConvert;
+use RuntimeException;
 
 class Generator
 {
@@ -10,18 +11,23 @@ class Generator
     /** @var string string */
     private $outputDir;
 
+    /** @var IdnaConvert */
+    private $idnaConverter;
+
     /**
-     * @param string $outputDir
+     * @param string      $outputDir
+     * @param IdnaConvert $idnaConvert
      */
-    public function __construct($outputDir)
+    public function __construct($outputDir, IdnaConvert $idnaConvert)
     {
         $this->outputDir = $outputDir;
+        $this->idnaConverter = $idnaConvert;
     }
 
     public function generateFiles()
     {
         $date = date('Y-m-d H:i:s');
-        $lines = $this->domainWorker();
+        $lines = $this->processDomainList();
         $this->createApache($date, $lines);
         $this->createNginx($date, $lines);
         $this->createVarnish($date, $lines);
@@ -32,26 +38,25 @@ class Generator
 
     /**
      * @return array
+     * @throws RuntimeException
      */
-    public function domainWorker()
+    protected function processDomainList()
     {
-        $domainsFile = __DIR__ . "/domains.txt";
+        $domainsFile = __DIR__ . '/domains.txt';
 
-        $handle = fopen($domainsFile, "r");
+        $handle = fopen($domainsFile, 'rb');
+
         if (! $handle) {
-            throw new \RuntimeException('Error opening file ' . $domainsFile);
+            throw new RuntimeException('Error opening file ' . $domainsFile);
         }
+
         $lines = array();
         while (($line = fgets($handle)) !== false) {
-            $line = trim(preg_replace('/\s\s+/', ' ', $line));
+            $line = mb_strtolower(trim(preg_replace('/\s+/u', '', $line)), 'UTF-8');
 
             // convert internationalized domain names
-            if (preg_match('/[А-Яа-яЁёɢ]/u', $line)) {
-
-                $IDN = new IdnaConvert();
-
-                $line = $IDN->encode($line);
-
+            if ($this->isUnicode($line)) {
+                $line = $this->idnaConverter->encode($line);
             }
 
             if (empty($line)) {
@@ -59,33 +64,26 @@ class Generator
             }
             $lines[] = $line;
         }
+
         fclose($handle);
         $uniqueLines = array_unique($lines, SORT_STRING);
         sort($uniqueLines, SORT_STRING);
-        if (is_writable($domainsFile)) {
-            file_put_contents($domainsFile, implode("\n", $uniqueLines));
-        } else {
+
+        if (!is_writable($domainsFile)) {
             trigger_error("Permission denied");
         }
 
-        return $lines;
+        file_put_contents($domainsFile, implode("\n", $uniqueLines));
+        return $uniqueLines;
     }
 
     /**
-     * @param string $filename
-     * @param string $data
+     * @param $line
+     * @return bool
      */
-    protected function writeToFile($filename, $data)
+    protected function isUnicode($line)
     {
-        $file = $this->outputDir . '/' . $filename;
-        if (is_writable($file)) {
-            file_put_contents($file, $data);
-            if (! chmod($file, 0644)) {
-                trigger_error("Couldn't not set " . $filename . " permissions to 644");
-            }
-        } else {
-            trigger_error("Permission denied");
-        }
+        return strlen($line) !== mb_strlen($line, 'UTF-8');
     }
 
     /**
@@ -115,6 +113,23 @@ class Generator
             "\n\t\tRequire all granted\n\t\tRequire not env spambot\n\t</RequireAll>\n</IfModule>";
 
         $this->writeToFile('.htaccess', $data);
+    }
+
+    /**
+     * @param string $filename
+     * @param string $data
+     */
+    protected function writeToFile($filename, $data)
+    {
+        $file = $this->outputDir . '/' . $filename;
+        if (is_writable($file)) {
+            file_put_contents($file, $data);
+            if (! chmod($file, 0644)) {
+                trigger_error("Couldn't not set " . $filename . " permissions to 644");
+            }
+        } else {
+            trigger_error("Permission denied");
+        }
     }
 
     /**
@@ -179,7 +194,6 @@ class Generator
 
         $this->writeToFile('web.config', $data);
     }
-
 
     /**
      * @param string $date
