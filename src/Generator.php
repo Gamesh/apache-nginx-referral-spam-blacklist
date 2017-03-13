@@ -3,6 +3,7 @@ namespace StevieRay;
 
 use Mso\IdnaConvert\IdnaConvert;
 use RuntimeException;
+use StevieRay\Format\ApacheFormat;
 
 class Generator
 {
@@ -88,29 +89,26 @@ class Generator
 
     /**
      * @param string $date
-     * @param array  $lines
+     * @param array  $domains
      */
-    public function createApache($date, array $lines)
+    public function createApache($date, array $domains)
     {
-        $data = "# " . $this->projectUrl . "\n# Updated " . $date . "\n\n" .
-            "<IfModule mod_rewrite.c>\n\nRewriteEngine On\n\n";
-        foreach ($lines as $line) {
-            if ($line === end($lines)) {
-                $data .= "RewriteCond %{HTTP_REFERER} ^http(s)?://(www.)?.*" . preg_quote($line) . ".*$ [NC]\n";
-                break;
-            }
+        $apacheFormat = new ApacheFormat();
 
-            $data .= "RewriteCond %{HTTP_REFERER} ^http(s)?://(www.)?.*" . preg_quote($line) . ".*$ [NC,OR]\n";
+
+        $noOfLines = count($domains) - 1;
+        $rewriteRules = $envVars = '';
+        foreach ($domains as $k => $domain) {
+            $domain = $this->escape($domain);
+            $rewriteRules .= $apacheFormat->createRewriteRule($domain, $k === $noOfLines);
+            $envVars .= $apacheFormat->createSetEnv($domain);
         }
 
-        $data .= "RewriteRule ^(.*)$ – [F,L]\n\n</IfModule>\n\n<IfModule mod_setenvif.c>\n\n";
-        foreach ($lines as $line) {
-            $data .= "SetEnvIfNoCase Referer " . preg_quote($line) . " spambot=yes\n";
-        }
-        $data .= "\n</IfModule>\n\n# Apache 2.2\n<IfModule !mod_authz_core.c>\n\t<IfModule mod_authz_host.c>\n\t\t" .
-            "Order allow,deny\n\t\tAllow from all\n\t\tDeny from env=spambot\n\t</IfModule>\n</IfModule>\n# " .
-            "Apache 2.4\n<IfModule mod_authz_core.c>\n\t<RequireAll>" .
-            "\n\t\tRequire all granted\n\t\tRequire not env spambot\n\t</RequireAll>\n</IfModule>";
+        $data = $apacheFormat->getHeader($this->projectUrl, $date)
+            . $rewriteRules
+            . ApacheFormat::REWRITE_RULE
+            . $envVars
+            . $apacheFormat->getFooter();
 
         $this->writeToFile('.htaccess', $data);
     }
@@ -145,7 +143,7 @@ class Generator
             "#      server {\n#        if (\$bad_referer) {\n#          return 444;\n#        }\n#      }\n" .
             "#\nmap \$http_referer \$bad_referer {\n\tdefault 0;\n\n";
         foreach ($lines as $line) {
-            $data .= "\t\"~*" . preg_quote($line) . "\" 1;\n";
+            $data .= "\t\"~*" . $this->escape($line) . "\" 1;\n";
         }
         $data .= "\n}";
 
@@ -161,11 +159,11 @@ class Generator
         $data = "# " . $this->projectUrl . "\n# Updated " . $date . "\nsub block_referral_spam {\n\tif (\n";
         foreach ($lines as $line) {
             if ($line === end($lines)) {
-                $data .= "\t\treq.http.Referer ~ \"(?i)" . preg_quote($line) . "\"\n";
+                $data .= "\t\treq.http.Referer ~ \"(?i)" . $this->escape($line) . "\"\n";
                 break;
             }
 
-            $data .= "\t\treq.http.Referer ~ \"(?i)" . preg_quote($line) . "\" ||\n";
+            $data .= "\t\treq.http.Referer ~ \"(?i)" . $this->escape($line) . "\" ||\n";
         }
 
         $data .= "\t) {\n\t\t\treturn (synth(444, \"No Response\"));\n\t}\n}";
@@ -186,7 +184,7 @@ class Generator
 
             $data .= "\t\t\t\t<rule name=\"Referrer Spam " . $line . "\" stopProcessing=\"true\">" .
                 "<match url=\".*\" /><conditions><add input=\"{HTTP_REFERER}\" pattern=\"(" .
-                preg_quote($line) .
+                $this->escape($line) .
                 ")\"/></conditions><action type=\"AbortRequest\" /></rule>\n";
         }
 
@@ -206,7 +204,7 @@ class Generator
             "#\n# ini = referral_spam.res:blacklist_spam\n\n" .
             "[blacklist_spam]\n";
         foreach ($lines as $line) {
-            $data .= "route-referer = (?i)" . preg_quote($line) . " break:403 Forbidden\n";
+            $data .= "route-referer = (?i)" . $this->escape($line) . " break:403 Forbidden\n";
         }
         $data .= "route-label = referral_spam";
 
@@ -222,7 +220,7 @@ class Generator
         $regexLines = [];
 
         foreach ($lines as $line) {
-            $regexLines[] = preg_quote($line);
+            $regexLines[] = $this->escape($line);
         }
         $data = implode('|', $regexLines);
 
@@ -251,5 +249,15 @@ class Generator
             $this->writeToFile('google-exclude-' . $x . '.txt', $dataSplit);
         }
 
+    }
+
+    /**
+     * @param string $line
+     * @param string $delimiterChar
+     * @return string string
+     */
+    protected function escape($line, $delimiterChar = '/')
+    {
+        return preg_quote($line, $delimiterChar);
     }
 }
