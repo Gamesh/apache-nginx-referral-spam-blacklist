@@ -4,6 +4,7 @@ namespace StevieRay;
 use Mso\IdnaConvert\IdnaConvert;
 use RuntimeException;
 use StevieRay\Format\ApacheFormat;
+use StevieRay\Format\NginxFormat;
 
 class Generator
 {
@@ -132,20 +133,17 @@ class Generator
 
     /**
      * @param string $date
-     * @param array  $lines
+     * @param array  $domains
      */
-    public function createNginx($date, array $lines)
+    public function createNginx($date, array $domains)
     {
-        $data = "# " . $this->projectUrl . "\n# Updated " . $date . "\n#\n# /etc/nginx/referral-spam.conf\n#\n" .
-            "# With referral-spam.conf in /etc/nginx, include it globally from within /etc/nginx/nginx.conf:\n#\n" .
-            "#     include referral-spam.conf;\n#\n" .
-            "# Add the following to each /etc/nginx/site-available/your-site.conf that needs protection:\n#\n" .
-            "#      server {\n#        if (\$bad_referer) {\n#          return 444;\n#        }\n#      }\n" .
-            "#\nmap \$http_referer \$bad_referer {\n\tdefault 0;\n\n";
-        foreach ($lines as $line) {
-            $data .= "\t\"~*" . $this->escape($line) . "\" 1;\n";
+        $nginxFormat = new NginxFormat();
+        $data = $nginxFormat->getHeader($this->projectUrl, $date);
+
+        foreach ($domains as $domain) {
+            $data .= $nginxFormat->createDirective($this->escape($domain));
         }
-        $data .= "\n}";
+        $data .= $nginxFormat->getFooter();
 
         $this->writeToFile('referral-spam.conf', $data);
     }
