@@ -1,7 +1,7 @@
 <?php
 namespace StevieRay\Format;
 
-class VarnishFormat implements FormatInterface
+class VarnishFormat extends AbstractFormat
 {
     const FLAG_OR = '||';
     const RULE_TEMPLATE = '      req.http.Referer ~ "(?i)%domain%" %flags%';
@@ -20,7 +20,13 @@ VCL;
 
     public function createRule($domain, $isLast = false)
     {
-        return strtr(self::RULE_TEMPLATE, ['%domain%' => $domain, '%flags%' => $this->getFlags($isLast)]) . "\n";
+        return strtr(
+                self::RULE_TEMPLATE,
+                [
+                    '%domain%' => $this->escape($domain),
+                    '%flags%' => $this->getFlags($isLast),
+                ]
+            ) . "\n";
     }
 
     private function getFlags($isLast)

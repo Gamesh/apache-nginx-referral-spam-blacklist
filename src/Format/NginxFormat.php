@@ -1,7 +1,7 @@
 <?php
 namespace StevieRay\Format;
 
-class NginxFormat implements FormatInterface
+class NginxFormat extends AbstractFormat
 {
     const DIRECTIVE_TEMPLATE = '    "~*%s" 1;';
 
@@ -35,7 +35,7 @@ CONF;
 
     public function createDirective($domain)
     {
-        return sprintf(self::DIRECTIVE_TEMPLATE, $domain) . "\n";
+        return sprintf(self::DIRECTIVE_TEMPLATE, $this->escape($domain)) . "\n";
     }
 
     public function getFooter(){

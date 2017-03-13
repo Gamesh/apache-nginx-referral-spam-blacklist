@@ -1,7 +1,7 @@
 <?php
 namespace StevieRay\Format;
 
-class ApacheFormat implements FormatInterface
+class ApacheFormat extends AbstractFormat
 {
     const FLAG_CASE_INSENSITIVE = 'NC';
     const FLAG_OR = 'OR';
@@ -28,7 +28,7 @@ HTACCESS;
         return strtr(
                 static::REWRITE_CONDITION_TEMPLATE,
                 [
-                    '%domain%' => $domain,
+                    '%domain%' => $this->escape($domain),
                     '%flag%' => $this->getFlags($isLast),
                 ]
             ) . "\n";
@@ -74,6 +74,6 @@ HTACCESS;
 
     public function createSetEnv($domain)
     {
-        return sprintf(self::SET_ENV_TEMPLATE, $domain) . "\n";
+        return sprintf(self::SET_ENV_TEMPLATE, $this->escape($domain)) . "\n";
     }
 }

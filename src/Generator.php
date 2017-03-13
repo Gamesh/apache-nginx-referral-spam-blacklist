@@ -4,6 +4,7 @@ namespace StevieRay;
 use Mso\IdnaConvert\IdnaConvert;
 use RuntimeException;
 use StevieRay\Format\ApacheFormat;
+use StevieRay\Format\IisFormat;
 use StevieRay\Format\NginxFormat;
 use StevieRay\Format\VarnishFormat;
 
@@ -100,7 +101,6 @@ class Generator
         $total = count($domains) - 1;
         $rewriteRules = $envVars = '';
         foreach ($domains as $n => $domain) {
-            $domain = $this->escape($domain);
             $rewriteRules .= $apache->createRewriteRule($domain, $n === $total);
             $envVars .= $apache->createSetEnv($domain);
         }
@@ -141,7 +141,7 @@ class Generator
         $data = $nginx->getHeader($this->projectUrl, $date);
 
         foreach ($domains as $domain) {
-            $data .= $nginx->createDirective($this->escape($domain));
+            $data .= $nginx->createDirective($domain);
         }
         $data .= $nginx->getFooter();
 
@@ -159,7 +159,7 @@ class Generator
 
         $total = count($domains) - 1;
         foreach ($domains as $n => $domain) {
-            $data .= $varnish->createRule($this->escape($domain), $n === $total);
+            $data .= $varnish->createRule($domain, $n === $total);
         }
         $data .= $varnish->getFooter();
 
@@ -168,22 +168,17 @@ class Generator
 
     /**
      * @param string $date
-     * @param array  $lines
+     * @param array  $domains
      */
-    public function createIIS($date, array $lines)
+    public function createIIS($date, array $domains)
     {
-        $data = "<!-- " . $this->projectUrl . " -->\n<!-- Updated " . $date . " -->\n" .
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" .
-            "<configuration>\n\t<system.webServer>\n\t\t<rewrite>\n\t\t\t<rules>\n";
-        foreach ($lines as $line) {
-
-            $data .= "\t\t\t\t<rule name=\"Referrer Spam " . $line . "\" stopProcessing=\"true\">" .
-                "<match url=\".*\" /><conditions><add input=\"{HTTP_REFERER}\" pattern=\"(" .
-                $this->escape($line) .
-                ")\"/></conditions><action type=\"AbortRequest\" /></rule>\n";
+        $iis = new IisFormat();
+        $data = $iis->getHeader($this->projectUrl, $date);
+        foreach ($domains as $domain) {
+            $data .= $iis->createRule($domain);
         }
 
-        $data .= "\t\t\t</rules>\n\t\t</rewrite>\n\t</system.webServer>\n</configuration>";
+        $data .= $iis->getFooter();
 
         $this->writeToFile('web.config', $data);
     }
