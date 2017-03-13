@@ -5,6 +5,7 @@ use Mso\IdnaConvert\IdnaConvert;
 use RuntimeException;
 use StevieRay\Format\ApacheFormat;
 use StevieRay\Format\NginxFormat;
+use StevieRay\Format\VarnishFormat;
 
 class Generator
 {
@@ -94,22 +95,21 @@ class Generator
      */
     public function createApache($date, array $domains)
     {
-        $apacheFormat = new ApacheFormat();
+        $apache = new ApacheFormat();
 
-
-        $noOfLines = count($domains) - 1;
+        $total = count($domains) - 1;
         $rewriteRules = $envVars = '';
-        foreach ($domains as $k => $domain) {
+        foreach ($domains as $n => $domain) {
             $domain = $this->escape($domain);
-            $rewriteRules .= $apacheFormat->createRewriteRule($domain, $k === $noOfLines);
-            $envVars .= $apacheFormat->createSetEnv($domain);
+            $rewriteRules .= $apache->createRewriteRule($domain, $n === $total);
+            $envVars .= $apache->createSetEnv($domain);
         }
 
-        $data = $apacheFormat->getHeader($this->projectUrl, $date)
+        $data = $apache->getHeader($this->projectUrl, $date)
             . $rewriteRules
             . ApacheFormat::REWRITE_RULE
             . $envVars
-            . $apacheFormat->getFooter();
+            . $apache->getFooter();
 
         $this->writeToFile('.htaccess', $data);
     }
@@ -137,34 +137,31 @@ class Generator
      */
     public function createNginx($date, array $domains)
     {
-        $nginxFormat = new NginxFormat();
-        $data = $nginxFormat->getHeader($this->projectUrl, $date);
+        $nginx = new NginxFormat();
+        $data = $nginx->getHeader($this->projectUrl, $date);
 
         foreach ($domains as $domain) {
-            $data .= $nginxFormat->createDirective($this->escape($domain));
+            $data .= $nginx->createDirective($this->escape($domain));
         }
-        $data .= $nginxFormat->getFooter();
+        $data .= $nginx->getFooter();
 
         $this->writeToFile('referral-spam.conf', $data);
     }
 
     /**
      * @param string $date
-     * @param array  $lines
+     * @param array  $domains
      */
-    public function createVarnish($date, array $lines)
+    public function createVarnish($date, array $domains)
     {
-        $data = "# " . $this->projectUrl . "\n# Updated " . $date . "\nsub block_referral_spam {\n\tif (\n";
-        foreach ($lines as $line) {
-            if ($line === end($lines)) {
-                $data .= "\t\treq.http.Referer ~ \"(?i)" . $this->escape($line) . "\"\n";
-                break;
-            }
+        $varnish = new VarnishFormat();
+        $data = $varnish->getHeader($this->projectUrl, $date);
 
-            $data .= "\t\treq.http.Referer ~ \"(?i)" . $this->escape($line) . "\" ||\n";
+        $total = count($domains) - 1;
+        foreach ($domains as $n => $domain) {
+            $data .= $varnish->createRule($this->escape($domain), $n === $total);
         }
-
-        $data .= "\t) {\n\t\t\treturn (synth(444, \"No Response\"));\n\t}\n}";
+        $data .= $varnish->getFooter();
 
         $this->writeToFile('referral-spam.vcl', $data);
     }

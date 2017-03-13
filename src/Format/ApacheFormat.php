@@ -1,7 +1,7 @@
 <?php
 namespace StevieRay\Format;
 
-class ApacheFormat
+class ApacheFormat implements FormatInterface
 {
     const FLAG_CASE_INSENSITIVE = 'NC';
     const FLAG_OR = 'OR';

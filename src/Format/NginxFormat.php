@@ -1,12 +1,7 @@
 <?php
-/**
- * @author Gamesh
- */
-
 namespace StevieRay\Format;
 
-
-class NginxFormat
+class NginxFormat implements FormatInterface
 {
     const DIRECTIVE_TEMPLATE = '    "~*%s" 1;';
 
