@@ -1,7 +1,7 @@
 <?php
 namespace StevieRay\Format;
 
-class IisFormat extends AbstractFormat
+class IISFormat extends AbstractFormat
 {
     public function getHeader($projectUrl, $date)
     {

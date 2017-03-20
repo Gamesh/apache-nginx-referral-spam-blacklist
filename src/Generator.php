@@ -4,7 +4,7 @@ namespace StevieRay;
 use Mso\IdnaConvert\IdnaConvert;
 use RuntimeException;
 use StevieRay\Format\ApacheFormat;
-use StevieRay\Format\IisFormat;
+use StevieRay\Format\IISFormat;
 use StevieRay\Format\NginxFormat;
 use StevieRay\Format\VarnishFormat;
 
@@ -172,7 +172,7 @@ class Generator
      */
     public function createIIS($date, array $domains)
     {
-        $iis = new IisFormat();
+        $iis = new IISFormat();
         $data = $iis->getHeader($this->projectUrl, $date);
         foreach ($domains as $domain) {
             $data .= $iis->createRule($domain);
